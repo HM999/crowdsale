@@ -1,12 +1,9 @@
 pragma solidity ^0.5.0;
 
-//
-// Martin Smith - Create Crowdsale and accompanying reward token in one hit
-//
-
 interface RewardToken {
     function transfer(address receiver, uint amount) external;
     function balanceOf(address holder) external returns (uint);
+    function totalSupply() external returns (uint);
 }
 
 interface PaymentToken {
@@ -348,6 +345,11 @@ contract CreateCrowdsale {
     
     event CrowdsaleCreated(address createdBy, address rewardToken, address crowdsale);
     
+    event Debug1(uint indexed totalSupply);
+    event Debug2(uint totalGiven);
+    event Debug3(uint keep);
+    event Debug4(uint sale);
+    
     function createCrowdsale (uint totalTokens,                 // 1,000,000
                               uint saleTokens,                  //   500,000
                               uint costOfEachToken,             //    50,000 
@@ -379,8 +381,14 @@ contract CreateCrowdsale {
                                               
         // transfer required amount of reward token into crowdsale contract
         RewardToken r = RewardToken(rewardToken);
-        r.transfer(msg.sender,keepTokens);
-        r.transfer(address(crowdsale), saleTokens);
+        //r.transfer(msg.sender,keepTokens);
+        //r.transfer(address(crowdsale), saleTokens);
+        
+        uint x = r.totalSupply();
+        emit Debug1( x );
+        emit Debug2(totalTokens); 
+        emit Debug3(keepTokens);
+        emit Debug4(saleTokens);
         
         emit CrowdsaleCreated(msg.sender, rewardToken, address(crowdsale));
     }                          
