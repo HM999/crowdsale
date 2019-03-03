@@ -1,5 +1,9 @@
 pragma solidity >=0.4.22 <0.6.0;
 
+//
+// Martin Smith - Crowdsale, but you pay with an ERC20 instead of Ether
+//
+
 interface RewardToken {
     function transfer(address receiver, uint amount) external;
 }

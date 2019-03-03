@@ -1,5 +1,9 @@
 pragma solidity ^0.5.0;
 
+//
+// Martin Smith - ERC20 token with double linked list of addresses with balances
+//
+
 interface tokenRecipient { 
     function receiveApproval(address _from, uint256 _value, address _token, bytes calldata _extraData) external; 
 }

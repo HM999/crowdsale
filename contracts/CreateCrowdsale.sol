@@ -1,5 +1,9 @@
 pragma solidity ^0.5.0;
 
+//
+// Martin Smith - Create Crowdsale and accompanying reward token in one hit
+//
+
 interface RewardToken {
     function transfer(address receiver, uint amount) external;
     function balanceOf(address holder) external returns (uint);
