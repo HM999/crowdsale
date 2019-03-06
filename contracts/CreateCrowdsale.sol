@@ -21,8 +21,8 @@ contract Crowdsale {
     RewardToken public tokenReward;
     PaymentToken public tokenPayment;
     mapping(address => uint256) public balanceOf;
-    bool fundingGoalReached = false;
-    bool crowdsaleClosed = false;
+    bool public fundingGoalReached = false;
+    bool public crowdsaleClosed = false;
 
     event GoalReached(address recipient, uint totalAmountRaised);
     event FundTransfer(address backer, uint amount, bool isContribution);
@@ -41,9 +41,9 @@ contract Crowdsale {
         address addressOfTokenUsedAsPayment
     ) public {
         beneficiary = ifSuccessfulSendTo;
-        fundingGoal = fundingGoalInPaymentToken * 1e18;  // assumes PT is 18 decimals
+        fundingGoal = fundingGoalInPaymentToken;
         deadline = now + durationInMinutes * 1 minutes;
-        price = costOfEachToken * 1e18;
+        price = costOfEachToken;
         tokenReward = RewardToken(addressOfTokenUsedAsReward);
         tokenPayment = PaymentToken(addressOfTokenUsedAsPayment);
     }
@@ -67,14 +67,19 @@ contract Crowdsale {
 
     function buy(uint amount) public {
         require(!crowdsaleClosed, "Sale Closed");
-        require( tokenReward.balanceOf(address(this)) < amount/ price, "Not enough tokens remaining");
+        uint numTokens = ( amount * 1e18 ) / price;
+        require(tokenReward.balanceOf(address(this)) >= numTokens, "Not enough tokens remaining");
         require(tokenPayment.transferFrom(msg.sender, address(this), amount), "Payment Missing");
         balanceOf[msg.sender] += amount;
         amountRaised += amount;
-        tokenReward.transfer(msg.sender, amount / price);
+        tokenReward.transfer(msg.sender, numTokens);
         emit FundTransfer(msg.sender, amount, true);
     }
 
+    function remaining() public returns (uint) {
+        return tokenReward.balanceOf(address(this));
+    }
+    
     
     modifier afterDeadline() { if (now >= deadline) _; }
 
@@ -187,7 +192,7 @@ contract ListERC20 {
         string memory tokenName,
         string memory tokenSymbol
     ) public {
-        totalSupply = initialSupply * 10 ** uint256(decimals);  // Update total supply with the decimal amount
+        totalSupply = initialSupply;                        // in wei
         balanceOf[msg.sender] = totalSupply;                // Give the creator all initial tokens
         addToList(msg.sender);
         name = tokenName;                                   // Set the name for display purposes
@@ -335,7 +340,7 @@ contract RewardTokenFactory {
     function newRewardToken(uint totalTokens, string calldata rewardTokenName, string calldata rewardTokenSymbol) external returns(address) {
 
         ListERC20 c = new ListERC20( totalTokens, rewardTokenName, rewardTokenSymbol );
-        c.transfer(msg.sender,totalTokens);
+        c.transfer(msg.sender,c.totalSupply());
 
         return address(c);
     }
@@ -345,14 +350,9 @@ contract CreateCrowdsale {
     
     event CrowdsaleCreated(address createdBy, address rewardToken, address crowdsale);
     
-    event Debug1(uint indexed totalSupply);
-    event Debug2(uint totalGiven);
-    event Debug3(uint keep);
-    event Debug4(uint sale);
-    
-    function createCrowdsale (uint totalTokens,                 // 1,000,000
-                              uint saleTokens,                  //   500,000
-                              uint costOfEachToken,             //    50,000 
+    function createCrowdsale (uint totalTokens,                 // 1,000,000 *1e18
+                              uint saleTokens,                  //   500,000 *1e18
+                              uint costOfEachToken,             //         1 *1e18
                               uint durationInMinutes,           //    45,000
                               address rewardTokenFactory,  
                               string memory rewardTokenName,    // "Rights - 50 Shades"
@@ -365,11 +365,7 @@ contract CreateCrowdsale {
 
         address rewardToken = f.newRewardToken(totalTokens, rewardTokenName, rewardTokenSymbol);
         
-        uint fundingGoalInPaymentToken = costOfEachToken * saleTokens; 
-        
-        uint keepTokens = (totalTokens-saleTokens) * 1e18;
-        
-        saleTokens = saleTokens * 1e18;
+        uint fundingGoalInPaymentToken = (costOfEachToken * saleTokens) / 1e18; 
         
         // create the crowdsale contract
         Crowdsale crowdsale = new Crowdsale( msg.sender, 
@@ -381,15 +377,12 @@ contract CreateCrowdsale {
                                               
         // transfer required amount of reward token into crowdsale contract
         RewardToken r = RewardToken(rewardToken);
-        //r.transfer(msg.sender,keepTokens);
-        //r.transfer(address(crowdsale), saleTokens);
-        
-        uint x = r.totalSupply();
-        emit Debug1( x );
-        emit Debug2(totalTokens); 
-        emit Debug3(keepTokens);
-        emit Debug4(saleTokens);
-        
+
+        uint keepTokens = totalTokens - saleTokens;
+
+        r.transfer(msg.sender, keepTokens);
+        r.transfer(address(crowdsale), saleTokens);
+
         emit CrowdsaleCreated(msg.sender, rewardToken, address(crowdsale));
     }                          
             
