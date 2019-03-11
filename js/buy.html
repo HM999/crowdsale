@@ -1,0 +1,276 @@
+<html>
+<head>
+</head>
+<body>
+
+<script src="//code.jquery.com/jquery-1.7.2.min.js" type="text/javascript"></script>
+<script src="//cdn.jsdelivr.net/gh/ethereum/web3.js@0.19.0/dist/web3.min.js" ></script>
+
+<div id="status">Fetching....</div>
+<div id="fundingGoal">Fetching....</div>
+<div id="amountRaised">Fetching....</div>
+<div id="deadline">Fetching....</div>
+<div id="tokenReward">Fetching....</div>
+<div id="pricePerToken">Fetching....</div>
+<div id="total">Fetching....</div>
+<div id="remaining">Fetching....</div>
+<div id="myWallet">Fetching....</div>
+
+<br/>
+<font face="arial" style="font-size:12px">Amount of DAI:</font>
+<input type="amt" id="amt" name="amt"
+       value="10" min="0.01" max="1000">
+<input type="button" value="Approve" onclick="approve();">
+
+<div id="buyStatus"></div>
+<input id="buy" type="button" value="Buy" onclick="buy();">
+
+<script>
+
+    var daiAddress = '0x96a5d5d5a472f2958fdd39751da5de128211e5d8';
+    var crowdsaleAddress = '0xee3fb794c78efd90f9fd9d1c59c5a2b7abb6da2a';
+    var rewardTokenAddress = '0xb982ba6eacc1b87dafcc1869c04c2ff5052f0cb7';
+
+    var myWalletAddress = null;
+
+    window.addEventListener('load', async () => {
+
+        document.getElementById("buy").style.visibility = 'hidden';
+
+        // NEW: Modern dapp browsers...
+        if (window.ethereum) {
+            window.web3 = new Web3(ethereum);
+            try {
+                // Request account access if needed
+                await ethereum.enable();
+                // Acccounts now exposed
+                myWalletAddress = web3.eth.accounts[0];
+
+            } catch (error) {
+                // User denied account access...
+                document.getElementById("myWallet").innerHTML = "User Denied access to metamask";
+            }
+        }
+
+        // OLD: Legacy dapp browsers...
+        else if (window.web3) {
+            window.web3 = new Web3(web3.currentProvider);
+            myWalletAddress =  web3.eth.accounts[0];
+        }
+
+        // Non-dapp browsers...
+        else {
+            document.getElementById("status").innerHTML = "This web page requires the MetaMask Wallet browser plugin";
+            return;
+        }
+
+	if ( !myWalletAddress ) {
+            document.getElementById("myWallet").innerHTML = "User declined access to MetaMask, reload page and allow access to purchase.";
+	} else {
+            document.getElementById("myWallet").innerHTML = "Your wallet address: "+myWalletAddress;
+	}
+	
+        $.getJSON("./Crowdsale.json", (csArtifact)=>{  
+
+            var abi = csArtifact.abi;
+
+            //ccArtifact.networks[3];
+            //contractAddress = ccArtifact.networks[3].address;
+            contractAddress = crowdsaleAddress;
+
+            // Class 
+            Crowdsale = web3.eth.contract(abi);
+
+            // Instance
+            crowdsale = Crowdsale.at(contractAddress);
+
+            crowdsale.fundingGoal.call( (err,res)=>{ 
+                document.getElementById("fundingGoal").innerHTML = "Funding Goal: "+web3.fromWei(res,'ether'); 
+            } ); 
+
+            crowdsale.amountRaised.call( (err,res)=>{ 
+                document.getElementById("amountRaised").innerHTML = "Amount Raised: "+web3.fromWei(res,'ether'); 
+            } ); 
+
+            crowdsale.deadline.call( (err,res)=>{ 
+                document.getElementById("deadline").innerHTML = "Deadline: "+res; 
+            } ); 
+
+            crowdsale.tokenReward.call( (err,res)=>{ 
+                document.getElementById("tokenReward").innerHTML = "Token: "+res; 
+            } ); 
+
+            crowdsale.price.call( (err,res)=>{ 
+                document.getElementById("pricePerToken").innerHTML = "Price per Token: "+web3.fromWei(res,'ether'); 
+            } ); 
+
+            crowdsale.remaining.call( (err,res)=>{ 
+                document.getElementById("remaining").innerHTML = "Remaining Tokens: "+web3.fromWei(res,'ether'); 
+            } ); 
+
+            crowdsale.fundingGoalReached.call( (err,res)=>{ 
+		var fgr = res;
+                crowdsale.crowdsaleClosed.call( (err,res)=>{ 
+		    var closed = res;
+                    if ( fgr && closed ) {
+                        document.getElementById("status").innerHTML = "Status: Goal reached and closed";
+                    } else if ( fgr ) {
+                        document.getElementById("status").innerHTML = "Status: Goal reached";
+                    } else {
+                        document.getElementById("status").innerHTML = "Status: Open";
+	            }
+                } );
+            } ); 
+
+            $.getJSON("./ListERC20.json", (tArtifact)=>{  
+
+                var abi = tArtifact.abi;
+
+                //ccArtifact.networks[3];
+                //contractAddress = ccArtifact.networks[3].address;
+                contractAddress = rewardTokenAddress;
+
+                // Class 
+                ListERC20 = web3.eth.contract(abi);
+
+                // Instance
+                listERC20 = ListERC20.at(contractAddress);
+
+                listERC20.totalSupply.call( (err,res)=>{ 
+                    document.getElementById("total").innerHTML = "Total Tokens: "+web3.fromWei(res,'ether'); 
+                } ); 
+
+            } );
+        });
+    });
+
+    function getTransactionReceiptMined(txHash, interval) {
+        const transactionReceiptAsync = function(resolve, reject) {
+            web3.eth.getTransactionReceipt(txHash, (error, receipt) => {
+                if (error) {
+                    reject(error);
+                } else if (receipt == null) {
+                    setTimeout(
+                        () => transactionReceiptAsync(resolve, reject),
+                        interval ? interval : 500);
+                } else {
+                    resolve(receipt);
+                }
+            });
+        };
+
+        if (Array.isArray(txHash)) {
+            return Promise.all(txHash.map(
+                oneTxHash => self.getTransactionReceiptMined(oneTxHash, interval)));
+        } else if (typeof txHash === "string") {
+            return new Promise(transactionReceiptAsync);
+        } else {
+            throw new Error("Invalid Type: " + txHash);
+        }
+    };
+
+    function approve() {
+
+        var amt = document.getElementById("amt").value;
+
+	amt = web3.toWei(amt);
+
+        var dArtifact = null;
+
+        $.getJSON("./DSToken.json", (dArtifact)=>{ 	
+
+            var abi = dArtifact.abi;
+
+            //ccArtifact.networks[3];
+            //contractAddress = ccArtifact.networks[3].address;
+
+            // Class 
+            DSToken = web3.eth.contract(abi);
+
+            // Instance
+            dai = DSToken.at(daiAddress);
+
+            dai.approve( crowdsaleAddress, amt, { from: myWalletAddress, gas: 1000000 }, (err,res) => {
+		
+                if ( err ) {
+                    document.getElementById("buyStatus").innerHTML = "DAI approval failed";
+                    console.log("ERROR: "+ err);
+                } else {
+                    document.getElementById("buyStatus").innerHTML = "DAI approval submitted";
+                    console.log("RESULT: "+ res);
+                    txHash = res;
+                    var daiApprovalEvent = dai.Approval();
+                    daiApprovalEvent.watch( (err,res)=>{
+
+                        if ( res.args.guy==crowdsaleAddress && res.args.wad==amt ) {
+                            document.getElementById("buyStatus").innerHTML = "DAI approval complete";
+                            document.getElementById("buy").style.visibility = 'visible';
+
+
+                        } else {
+                            document.getElementById("buyStatus").innerHTML = "Something went wrong with DAI approval";
+                        }
+                    }); 
+                    getTransactionReceiptMined(txHash).then( function(receipt) { 
+                        console.log(receipt);
+                    });
+                }
+		
+	    });
+
+        });
+
+    }; // approve
+
+    function buy() {
+
+        var amt = document.getElementById("amt").value;
+
+	amt = web3.toWei(amt);
+
+        var cArtifact = null;
+
+        $.getJSON("./Crowdsale.json", (cArtifact)=>{ 	
+
+            var abi = cArtifact.abi;
+
+            //ccArtifact.networks[3];
+            //contractAddress = ccArtifact.networks[3].address;
+
+            // Class 
+            Crowdsale = web3.eth.contract(abi);
+
+            // Instance
+            crowdsale = Crowdsale.at(crowdsaleAddress);
+
+            crowdsale.buy( amt, { from: myWalletAddress, gas: 2000000 }, (err,res) => {
+		
+                if ( err ) {
+                    document.getElementById("buyStatus").innerHTML = "Purchase failed";
+                    console.log("ERROR: "+ err);
+                } else {
+                    document.getElementById("buyStatus").innerHTML = "Purchase submitted";
+                    console.log("RESULT: "+ res);
+                    txHash = res;
+                    var crowdsaleFundTransferEvent = crowdsale.FundTransfer();
+                    crowdsaleFundTransferEvent.watch( (err,res)=>{
+
+                            document.getElementById("buyStatus").innerHTML = "Receiving tokens";
+
+                    }); 
+                    getTransactionReceiptMined(txHash).then( function(receipt) { 
+                        console.log(receipt);
+                    });
+                }
+		
+	    });
+
+        });
+
+    }; // buy
+
+
+
+</script>
+
+</body>
