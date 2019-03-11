@@ -1,1 +1,1 @@
-# Solidity crowdsale with Dai as payment token.
+# CBHack: Solidity crowdsale with Dai as payment token.
